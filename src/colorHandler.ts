@@ -53,19 +53,69 @@ export class ColorHandler {
       if (selection.length === 0 && colorMode === ColorMode.ColoredText)
         return;
 
-      // Handle italic and bold text
-      let newText = selection;
-      newText = newText
+      // Handle italic and bold text within a single line's content
+      const formatInline = (t: string) => t
         // Italic and Bold: ***text*** or ___text___ to <b><i> tags
         .replace(/[\*\_]{3}(.+?)[\*\_]{3}/g, '<b><i>$1</i></b>')
         // Bold: **text** or __text__ to <b> tag
         .replace(/[\*\_]{2}(.+?)[\*\_]{2}/g, '<b>$1</b>')
         // Italic: *text* or _text_ to <i> tag
         .replace(/[\*\_](.+?)[\*\_]/g, '<i>$1</i>');
-      // New line: \n to <br> tag
-      newText = newText.replace(/\n/g, '<br>');
 
-      editor.replaceSelection(`<span style="color:${curCellColor}">${newText}</span>`);
+      const wrapContent = (content: string) =>
+        `<span style="color:${curCellColor}">${formatInline(content)}</span>`;
+
+      // Wrap the selected part of a single editor line. A leading block marker
+      // (indentation, blockquote >, list bullet -/*/+, ordered 1./1), checkbox)
+      // is kept OUTSIDE the span so the markdown block structure is preserved,
+      // and lines are later joined with real newlines instead of <br> (which is
+      // what previously collapsed lists onto a single line).
+      //
+      // `atLineStart` tells us whether the selected part actually begins at the
+      // logical start of the line (only whitespace before it). Only then is a
+      // leading marker a real list/quote marker. If the selection starts
+      // mid-line, a leading "-", "1." etc. is just a literal character and must
+      // be colored too -- this is the case the previous fix attempts couldn't
+      // distinguish (see issue #45 / PR #55 discussion).
+      const wrapLinePart = (part: string, atLineStart: boolean) => {
+        // Empty part (blank line): leave it untouched
+        if (part.length === 0) return part;
+        if (!atLineStart) return wrapContent(part);
+
+        const m = part.match(
+          /^(\s*(?:>\s*)*(?:(?:[-*+]|\d+[.)])\s+)?(?:\[[ xX]\]\s+)?)(.*)$/
+        );
+        const prefix = m ? m[1] : '';
+        const content = m ? m[2] : part;
+        // Marker-only line: nothing to color, leave it untouched
+        if (content.length === 0) return part;
+        return `${prefix}${wrapContent(content)}`;
+      };
+
+      let newText = selection;
+      if (selection.length > 0) {
+        // Walk each editor line the selection covers so we can tell, per line,
+        // whether the selection reaches the true start of that line.
+        const from = editor.getCursor('from');
+        const to = editor.getCursor('to');
+        const parts: string[] = [];
+        for (let ln = from.line; ln <= to.line; ln++) {
+          const fullLine = editor.getLine(ln);
+          const selStart = ln === from.line ? from.ch : 0;
+          const selEnd = ln === to.line ? to.ch : fullLine.length;
+          const part = fullLine.slice(selStart, selEnd);
+          // The selected part begins at the logical line start if everything
+          // before it on that line is whitespace (indentation) or nothing.
+          const atLineStart = /^\s*$/.test(fullLine.slice(0, selStart));
+          parts.push(wrapLinePart(part, atLineStart));
+        }
+        newText = parts.join('\n');
+        editor.replaceSelection(newText);
+      } else {
+        // Normal mode with no selection: insert an empty colored span and place
+        // the cursor inside it (handled by the cursor logic below).
+        editor.replaceSelection(`<span style="color:${curCellColor}"></span>`);
+      }
       const cursorEnd = editor.getCursor("to");
 
       try {
