@@ -41,7 +41,7 @@ If you’d like to improve or extend the plugin (for example, by adding MathJax 
 
 ### Areas of improvement
 - [ ] Add LaTeX/MathJax color support
-- [ ] Fixing bullet point [bug](https://github.com/erincayaz/obsidian-colored-text/issues/45)
+- [x] Fixing bullet point [bug](https://github.com/erincayaz/obsidian-colored-text/issues/45) --> solved by @brunobeeee
 - [ ] Making the plugin work properly for mobile devices
 - [ ] Fixing coloring headings [bug](https://github.com/erincayaz/obsidian-colored-text/issues/35)
 - [ ] Further improvements can be made as can be seen [here](https://github.com/erincayaz/obsidian-colored-text/issues/43)
