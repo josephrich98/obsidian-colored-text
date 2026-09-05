@@ -26,7 +26,10 @@ export class TextFormatting {
     if (!hasAsterisks) return false;
 
     const text = this.getAffectedText(changes);
-    return text.includes("span") && text.includes("color");
+    // Bold/italic sandwiching applies inside both wrappers the plugin writes:
+    // <span style="color:..."> and <mark style="background:...">
+    return (text.includes("span") && text.includes("color"))
+      || (text.includes("mark") && text.includes("background"));
   }
 
   private getAffectedText(changes: any): string {
@@ -107,13 +110,13 @@ export class TextFormatting {
       if (text.includes('<b>') && text.includes('</b>')) {
         return text.replace(/<b>/g, '').replace(/<\/b>/g, '');
       } else {
-        return text.replace(/(<span[^>]*>)([\s\S]*?)(<\/span>)/, '$1<b>$2</b>$3');
+        return text.replace(/(<(?:span|mark)[^>]*>)([\s\S]*?)(<\/(?:span|mark)>)/, '$1<b>$2</b>$3');
       }
     } else {
       if (text.includes('<i>') && text.includes('</i>')) {
         return text.replace(/<i>/g, '').replace(/<\/i>/g, '');
       } else {
-        return text.replace(/(<span[^>]*>)([\s\S]*?)(<\/span>)/, '$1<i>$2</i>$3');
+        return text.replace(/(<(?:span|mark)[^>]*>)([\s\S]*?)(<\/(?:span|mark)>)/, '$1<i>$2</i>$3');
       }
     }
   }

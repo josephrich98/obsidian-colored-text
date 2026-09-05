@@ -9,19 +9,24 @@ export class EditorExtension implements PluginValue {
   textFormatting : TextFormatting;
   colorHandler : ColorHandler;
   colorBar : StatusBar;
+  highlightBar : StatusBar;
 
-  constructor(view: EditorView, colorHandler: ColorHandler, colorBar: StatusBar) {
+  constructor(view: EditorView, colorHandler: ColorHandler, colorBar: StatusBar, highlightBar: StatusBar) {
     this.editorView = view;
     this.textFormatting = new TextFormatting(view);
     this.colorHandler = colorHandler;
     this.colorBar = colorBar;
+    this.highlightBar = highlightBar;
 
     this.editorView.contentDOM.addEventListener('mouseup', this.handleMouseUp)
   }
 
   handleMouseUp = () => {
+    // The two modes are mutually exclusive (see StatusBar.clickColoredText)
     if(this.colorBar.coloredText)
       this.colorHandler.changeColor(ColorMode.ColoredText);
+    else if(this.highlightBar.coloredText)
+      this.colorHandler.changeHighlight(ColorMode.ColoredText);
   }
 
 	update(update: ViewUpdate) {
@@ -36,10 +41,14 @@ export class EditorExtension implements PluginValue {
 }
 
 // This is needed for the editor extension to work, but don't really know why
-export function createEditorExtensionClass(colorHandler: ColorHandler, colorBar: StatusBar) {
+export function createEditorExtensionClass(
+  colorHandler: ColorHandler,
+  colorBar: StatusBar,
+  highlightBar: StatusBar
+) {
 	return class extends EditorExtension {
 		constructor(view: EditorView) {
-			super(view, colorHandler, colorBar);
+			super(view, colorHandler, colorBar, highlightBar);
 		}
 	};
 }

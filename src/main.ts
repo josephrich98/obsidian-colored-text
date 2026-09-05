@@ -1,7 +1,7 @@
 import {Editor, Menu, Plugin} from 'obsidian';
 import StatusBar from './statusBar';
 import {ColorModal} from "./colorModal";
-import {DEFAULT_SETTINGS, IndexMode} from './constants/defaults';
+import {DEFAULT_SETTINGS, IndexMode, PaletteKind, paletteColors} from './constants/defaults';
 import contextMenu from './contextMenu';
 import {SettingsTab} from './settingsTab';
 import {ColorsData} from './types/plugin';
@@ -16,6 +16,7 @@ export default class ColoredFont extends Plugin {
 
   colorsData: ColorsData;
   colorBar: StatusBar;
+  highlightBar: StatusBar;
   colorHandler: ColorHandler;
 
   async onload() {
@@ -27,19 +28,24 @@ export default class ColoredFont extends Plugin {
     this.addSettingTab(new SettingsTab(this.app, this));
 
     // -------------------- Status Bar -------------------- //
-    this.colorBar = new StatusBar(this);
+    this.colorBar = new StatusBar(this, PaletteKind.Text);
+    this.highlightBar = new StatusBar(this, PaletteKind.Highlight);
+    this.colorBar.setSibling(this.highlightBar);
+    this.highlightBar.setSibling(this.colorBar);
 
     // -------------------- Color Handler -------------------- //
-    this.colorHandler = new ColorHandler(this.app, this.colorBar);
+    this.colorHandler = new ColorHandler(this.app, this.colorBar, this.highlightBar);
 
     // -------------------- Editor Extension -------------------- //
-    const EditorExtensionClass = createEditorExtensionClass(this.colorHandler, this.colorBar);
+    const EditorExtensionClass = createEditorExtensionClass(
+      this.colorHandler, this.colorBar, this.highlightBar);
     this.registerEditorExtension(ViewPlugin.fromClass(EditorExtensionClass));
 
     // -------------------- Intervals -------------------- //
     setInterval(() => {
       this.curTheme = this.getCurrentTheme();
       this.colorBar.refreshBorderColorOfCurrentCell();
+      this.highlightBar.refreshBorderColorOfCurrentCell();
     }, 1000);
 
     // -------------------- Context Menu -------------------- //
@@ -49,7 +55,7 @@ export default class ColoredFont extends Plugin {
       })
     );
 
-    // -------------------- Commands -------------------- //
+    // -------------------- Commands: Text Color -------------------- //
     this.addCommand({
       id: 'color-text',
       name: 'Color Text',
@@ -64,7 +70,7 @@ export default class ColoredFont extends Plugin {
       name: 'Alter Color Palette',
       hotkeys: [],
       callback: () => {
-        this.openColorModal();
+        this.openColorModal(PaletteKind.Text);
       },
     })
 
@@ -87,7 +93,7 @@ export default class ColoredFont extends Plugin {
       name: "Remove Color From Selection / Under Cursor",
       hotkeys: [],
       editorCallback:(editor) => {
-        removeColor(editor);
+        removeColor(editor, PaletteKind.Text);
       }
     });
 
@@ -97,6 +103,57 @@ export default class ColoredFont extends Plugin {
       hotkeys: [],
       editorCallback: () => {
         this.colorBar.clickColoredText()
+      }
+    })
+
+    // -------------------- Commands: Highlight -------------------- //
+    this.addCommand({
+      id: 'highlight-text',
+      name: 'Highlight Text',
+      hotkeys: [],
+      editorCallback: () => {
+        this.colorHandler.changeHighlight();
+      }
+    });
+
+    this.addCommand({
+      id: 'alter-highlight-palette',
+      name: 'Alter Highlight Color Palette',
+      hotkeys: [],
+      callback: () => {
+        this.openColorModal(PaletteKind.Highlight);
+      },
+    })
+
+    this.addCommand({
+      id: 'move-highlight-cell-forward',
+      name: 'Move the Highlight Cell Forward',
+      hotkeys: [],
+      callback: () => this.highlightBar.changeCurrentIndex(IndexMode.Forward)
+    })
+
+    this.addCommand({
+      id: 'move-highlight-cell-backwards',
+      name: 'Move the Highlight Cell Backwards',
+      hotkeys: [],
+      callback: () => this.highlightBar.changeCurrentIndex(IndexMode.Backwards)
+    })
+
+    this.addCommand({
+      id: "remove-highlight",
+      name: "Remove Highlight From Selection / Under Cursor",
+      hotkeys: [],
+      editorCallback:(editor) => {
+        removeColor(editor, PaletteKind.Highlight);
+      }
+    });
+
+    this.addCommand({
+      id: "change-highlight-text-mode",
+      name: "Activate/Deactivate Highlight Text Mode",
+      hotkeys: [],
+      editorCallback: () => {
+        this.highlightBar.clickColoredText()
       }
     })
   }
@@ -120,11 +177,13 @@ export default class ColoredFont extends Plugin {
     return theme;
   }
 
-	openColorModal() {
-    new ColorModal(this.app, this, this.colorBar.getCurCellColor(), (result) => {
-      this.colorBar.changeCellColor(result);
+	openColorModal(kind: PaletteKind = PaletteKind.Text) {
+    const bar = kind === PaletteKind.Highlight ? this.highlightBar : this.colorBar;
 
-      this.colorsData.colorArr[this.colorBar.curIndex] = result;
+    new ColorModal(this.app, this, bar.getCurCellColor(), kind, (result) => {
+      bar.changeCellColor(result);
+
+      paletteColors(this.colorsData, kind)[bar.curIndex] = result;
       this.saveColorData();
     }).open();
 	}
@@ -135,6 +194,8 @@ export default class ColoredFont extends Plugin {
         ...DEFAULT_SETTINGS,
         colorArr: [...DEFAULT_SETTINGS.colorArr],
         favoriteColors: [...DEFAULT_SETTINGS.favoriteColors],
+        highlightArr: [...DEFAULT_SETTINGS.highlightArr],
+        favoriteHighlightColors: [...DEFAULT_SETTINGS.favoriteHighlightColors],
       }, await this.loadData());
   }
 

@@ -1,18 +1,24 @@
 import { App, MarkdownView } from "obsidian";
 import { ColorUtils } from "./colorUtils";
 import StatusBar from "./statusBar";
-import { ColorMode } from "./constants/defaults";
+import { ColorMode, PALETTE_SPECS, PaletteKind } from "./constants/defaults";
 
 export class ColorHandler {
   app: App;
   colorUtils: ColorUtils;
-  colorBar: StatusBar
+  colorBar: StatusBar;
+  highlightBar: StatusBar;
 
-  constructor(app: App, colorBar: StatusBar) {
+  constructor(app: App, colorBar: StatusBar, highlightBar: StatusBar) {
     this.app = app;
     this.colorBar = colorBar;
+    this.highlightBar = highlightBar;
 
     this.colorUtils = new ColorUtils();
+  }
+
+  private barFor(kind: PaletteKind): StatusBar {
+    return kind === PaletteKind.Highlight ? this.highlightBar : this.colorBar;
   }
 
   private nodeLength(n: any): number {
@@ -39,15 +45,25 @@ export class ColorHandler {
     return { startOffset, endOffset };
   }
 
-
+  /** Colors the selected text with the current cell of the text color palette. */
   changeColor(colorMode = ColorMode.Normal) {
+    this.applyStyle(PaletteKind.Text, colorMode);
+  }
+
+  /** Highlights the selected text with the current cell of the highlight palette. */
+  changeHighlight(colorMode = ColorMode.Normal) {
+    this.applyStyle(PaletteKind.Highlight, colorMode);
+  }
+
+  applyStyle(kind: PaletteKind, colorMode = ColorMode.Normal) {
+    const spec = PALETTE_SPECS[kind];
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 
     // Markdown View
     if (view) {
       const editor = view.editor;
       const selection = editor.getSelection();
-      const curCellColor = this.colorBar.getCurCellColor();
+      const curCellColor = this.barFor(kind).getCurCellColor();
 
       // If it is colored text mode and there is no selection, return
       if (selection.length === 0 && colorMode === ColorMode.ColoredText)
@@ -62,12 +78,15 @@ export class ColorHandler {
         // Italic: *text* or _text_ to <i> tag
         .replace(/[\*\_](.+?)[\*\_]/g, '<i>$1</i>');
 
+      const openTag = `<${spec.tag} style="${spec.cssProp}:${curCellColor}">`;
+      const closeTag = `</${spec.tag}>`;
+
       const wrapContent = (content: string) =>
-        `<span style="color:${curCellColor}">${formatInline(content)}</span>`;
+        `${openTag}${formatInline(content)}${closeTag}`;
 
       // Wrap the selected part of a single editor line. A leading block marker
       // (indentation, blockquote >, list bullet -/*/+, ordered 1./1), checkbox)
-      // is kept OUTSIDE the span so the markdown block structure is preserved,
+      // is kept OUTSIDE the tag so the markdown block structure is preserved,
       // and lines are later joined with real newlines instead of <br> (which is
       // what previously collapsed lists onto a single line).
       //
@@ -75,7 +94,7 @@ export class ColorHandler {
       // logical start of the line (only whitespace before it). Only then is a
       // leading marker a real list/quote marker. If the selection starts
       // mid-line, a leading "-", "1." etc. is just a literal character and must
-      // be colored too -- this is the case the previous fix attempts couldn't
+      // be styled too -- this is the case the previous fix attempts couldn't
       // distinguish (see issue #45 / PR #55 discussion).
       const wrapLinePart = (part: string, atLineStart: boolean) => {
         // Empty part (blank line): leave it untouched
@@ -87,7 +106,7 @@ export class ColorHandler {
         );
         const prefix = m ? m[1] : '';
         const content = m ? m[2] : part;
-        // Marker-only line: nothing to color, leave it untouched
+        // Marker-only line: nothing to style, leave it untouched
         if (content.length === 0) return part;
         return `${prefix}${wrapContent(content)}`;
       };
@@ -112,14 +131,15 @@ export class ColorHandler {
         newText = parts.join('\n');
         editor.replaceSelection(newText);
       } else {
-        // Normal mode with no selection: insert an empty colored span and place
+        // Normal mode with no selection: insert an empty tag pair and place
         // the cursor inside it (handled by the cursor logic below).
-        editor.replaceSelection(`<span style="color:${curCellColor}"></span>`);
+        editor.replaceSelection(`${openTag}${closeTag}`);
       }
       const cursorEnd = editor.getCursor("to");
 
       try {
-        const cursorEndChar = newText.length === 0 ? cursorEnd.ch - 7 : cursorEnd.ch + 1;
+        const cursorEndChar = newText.length === 0 ?
+          cursorEnd.ch - closeTag.length : cursorEnd.ch + 1;
         editor.setCursor(cursorEnd.line, cursorEndChar);
       }
       catch (e) {
@@ -133,7 +153,7 @@ export class ColorHandler {
     const canvasView = this.app.workspace.getActiveViewOfType(Object as any);
     if (canvasView && (canvasView as any).canvas) {
       const selectedNodes = Array.from((canvasView as any).canvas.selection.values());
-      const curCellColor = this.colorBar.getCurCellColor();
+      const curCellColor = this.barFor(kind).getCurCellColor();
 
       for (const node of selectedNodes) {
         const data = (node as any).getData();
@@ -159,7 +179,8 @@ export class ColorHandler {
 
               const before = fullText.slice(0, startOffset);
               const after = fullText.slice(endOffset);
-              const wrapped = `<span style="color:${curCellColor}">${selectedText}</span>`;
+              const wrapped =
+                `<${spec.tag} style="${spec.cssProp}:${curCellColor}">${selectedText}</${spec.tag}>`;
 
               const newHtml = before + wrapped + after;
 

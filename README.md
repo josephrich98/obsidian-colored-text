@@ -10,16 +10,28 @@ This is a plugin for [Obsidian](https://obsidian.md/) for adding colored texts t
 - In the input menu, there are two ways to select colors. You can either select from your favorite colors, which is set to the most used colors by default and can be customized in the settings, or you can select a customized color by using the color palette
 - You can change the color of the selected text into the current slot's color by using the assigned hotkey or right-clicking
 - You can remove the color of the selected text by using the assigned hotkey or right-clicking
-- Highlight mode is added, you can activate it through the highlight icon in the status bar or assign a hotkey
+- Colored text mode is added, you can activate it through the text icon in the status bar or assign a hotkey
+- There is a second, independent set of slots for **highlight** colors. It works exactly like the color slots (own count, own favorites, own hotkeys) but wraps the selection in `<mark style="background:...">` instead of `<span style="color:...">`. Highlight slots are drawn as circles in the status bar so they are easy to tell apart from the square color slots.
 
 ## Usage
 
-Right now there are 5 commands available:
-- Change the color of the selected text
-- Remove the color of the selected text
-- Switch between slots, forward
-- Switch between slots, backwards
-- Open the color input menu
+Commands available for text color:
+- Color Text
+- Remove Color From Selection / Under Cursor
+- Move the Color Cell Forward
+- Change the Color Backwards
+- Alter Color Palette (opens the color input menu)
+- Activate/Deactivate Colored Text Mode
+
+And the matching commands for highlighting:
+- Highlight Text
+- Remove Highlight From Selection / Under Cursor
+- Move the Highlight Cell Forward
+- Move the Highlight Cell Backwards
+- Alter Highlight Color Palette (opens the highlight color input menu)
+- Activate/Deactivate Highlight Text Mode
+
+Colored text mode and highlight text mode are mutually exclusive; turning one on turns the other off.
 
 I suggest using hotkeys for these commands as I designed this plugin with a keyboard-centric approach.
 

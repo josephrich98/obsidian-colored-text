@@ -1,15 +1,26 @@
 import { Editor } from "obsidian";
+import { PALETTE_SPECS, PaletteKind } from "./constants/defaults";
 
+/**
+ * Strips the plugin's own wrapper tags from the selection (or from the tag
+ * under the cursor when there is no selection).
+ *
+ * `kind` selects which wrapper to remove: the text color <span> or the
+ * highlight <mark>.
+ */
 export default function removeColor(
-    editor: Editor
+    editor: Editor,
+    kind: PaletteKind = PaletteKind.Text
 ) : void {
+        const tag = PALETTE_SPECS[kind].tag;
+
         const fromCursor = editor.getCursor('from');
         const toCursor = editor.getCursor('to');
 
-        const spanRegex = /<span style=".*?">(.*?)<\/span>(.*?)/;
-        const spanRegexG = /<span style=".*?">(.*?)<\/span>(.*?)/g;
-        const beginRegex = /<span style=".*?">/;
-        const endString = "</span>";
+        const tagRegex = new RegExp(`<${tag} style=".*?">(.*?)<\\/${tag}>(.*?)`);
+        const tagRegexG = new RegExp(`<${tag} style=".*?">(.*?)<\\/${tag}>(.*?)`, 'g');
+        const beginRegex = new RegExp(`<${tag} style=".*?">`);
+        const endString = `</${tag}>`;
 
         if (fromCursor.ch == toCursor.ch && fromCursor.line == toCursor.line) {
             const cursor = fromCursor;
@@ -19,13 +30,13 @@ export default function removeColor(
             let sub = line.substring(d);
 
             let found = false;
-            while (!found && sub.search(spanRegex) != -1) {
-                const pos = sub.search(spanRegex);
+            while (!found && sub.search(tagRegex) != -1) {
+                const pos = sub.search(tagRegex);
                 d += pos;
                 const close = sub.substring(pos).search(endString);
 
                 if (cursor.ch >= d && cursor.ch < d + close + endString.length) {
-                    const newLine = line.substring(0, d) + line.substring(d).replace(spanRegex, '$1$2');
+                    const newLine = line.substring(0, d) + line.substring(d).replace(tagRegex, '$1$2');
                     editor.setLine(cursor.line, newLine);
                     editor.setCursor({ line: cursor.line, ch: d });
                     found = true;
@@ -43,7 +54,7 @@ export default function removeColor(
             let unendedBeginIndex = null;
             for (const [i, l] of lines.entries()) {
                 let newLine = l;
-                newLine = newLine.replaceAll(spanRegexG, '$1$2')
+                newLine = newLine.replaceAll(tagRegexG, '$1$2')
 
                 lines[i] = newLine;
 

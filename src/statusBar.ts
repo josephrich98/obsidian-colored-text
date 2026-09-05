@@ -4,7 +4,12 @@ import {
   COLORED_TEXT_MODE_HIGHLIGHTED_DARK,
   COLORED_TEXT_MODE_HIGHLIGHTED_LIGHT,
   IndexMode,
-  MAX_CELL_COUNT
+  MAX_CELL_COUNT,
+  PALETTE_SPECS,
+  PaletteKind,
+  PaletteSpec,
+  paletteCellCount,
+  paletteColors
 } from "./constants/defaults";
 import {ColorUtils} from "./colorUtils";
 
@@ -12,47 +17,62 @@ export default class StatusBar {
   private colorUtils : ColorUtils;
   private plugin : ColoredFont;
 
+  public readonly kind : PaletteKind;
+  private readonly spec : PaletteSpec;
+
   private coloredTextButton : HTMLElement;
   private colorDivs : HTMLDivElement[] = [];
 
   private readonly cellCount : number;
   private readonly hidePlugin : boolean;
 
+  /** The other palette's bar; only one of the two auto-apply modes may be on. */
+  private sibling : StatusBar | null = null;
+
   public curIndex : number;
   private prevIndex : number;
   public coloredText : boolean;
 
-  constructor(plugin: ColoredFont) {
+  constructor(plugin: ColoredFont, kind: PaletteKind = PaletteKind.Text) {
     this.colorUtils = new ColorUtils();
     this.plugin = plugin;
+    this.kind = kind;
+    this.spec = PALETTE_SPECS[kind];
 
     this.curIndex = 0;
+    this.prevIndex = 0;
     this.coloredText = false;
 
-    this.cellCount = +plugin.colorsData.colorCellCount > MAX_CELL_COUNT ?
-      MAX_CELL_COUNT : +plugin.colorsData.colorCellCount;
+    const count = +paletteCellCount(plugin.colorsData, kind);
+    this.cellCount = count > MAX_CELL_COUNT ? MAX_CELL_COUNT : count;
     this.hidePlugin = plugin.colorsData.hidePlugin;
 
     this.addColorCells(plugin);
     this.addColoredTextMode(plugin);
   }
 
+  setSibling(sibling: StatusBar) {
+    this.sibling = sibling;
+  }
+
   addColorCells(plugin: ColoredFont) {
     const onClickColorBar = (index: number) => () => {
       if(this.curIndex === index) {
-        plugin.openColorModal();
+        plugin.openColorModal(this.kind);
       }
       else {
         this.changeCurrentIndex(IndexMode.Select, index);
       }
     }
 
+    const colors = paletteColors(plugin.colorsData, this.kind);
+
     for (let i = 0; i < this.cellCount; i++) {
       const statusBarColor = plugin.addStatusBarItem();
 
       statusBarColor.style.paddingLeft = "0";
       statusBarColor.style.paddingRight = "0";
-      statusBarColor.style.order = `${i + 2}`;
+      statusBarColor.style.order = `${this.spec.orderBase + i + 1}`;
 
       if(this.hidePlugin) {
         statusBarColor.style.height = "0";
@@ -63,17 +83,17 @@ export default class StatusBar {
       statusBarColor.addEventListener("click", onClickColorBar(i));
 
       const colorIcon = statusBarColor.createDiv(
-        { 
-          cls: ['status-color'],
+        {
+          cls: ['status-color', this.spec.cellClass],
         }
       );
 
       // TODO: Find a better way to do this
-      if (i > plugin.colorsData.colorArr.length - 1) {
-        colorIcon.style.backgroundColor = "#000000";
+      if (i > colors.length - 1) {
+        colorIcon.style.backgroundColor = this.spec.defaultColor;
       }
       else {
-        colorIcon.style.backgroundColor = plugin.colorsData.colorArr[i];
+        colorIcon.style.backgroundColor = colors[i];
       }
       this.colorDivs.push(colorIcon);
     }
@@ -87,15 +107,15 @@ export default class StatusBar {
 
   addColoredTextMode(plugin: ColoredFont) {
     const item = plugin.addStatusBarItem();
-    item.style.order = "1";
-    item.ariaLabel = "Colored Text";
+    item.style.order = `${this.spec.orderBase}`;
+    item.ariaLabel = this.spec.modeLabel;
 
     this.coloredTextButton = item;
 
     item.addClass("mod-clickable");
     item.addEventListener("click", this.onClickColoredText());
 
-    setIcon(item, "highlighter");
+    setIcon(item, this.spec.modeIcon);
 
     if(this.hidePlugin) {
       item.style.height = "0";
@@ -105,6 +125,12 @@ export default class StatusBar {
 
   clickColoredText() {
     this.coloredText = !this.coloredText;
+
+    // The two auto-apply modes would fight over the same selection, so turning
+    // one on turns the other off.
+    if(this.coloredText && this.sibling?.coloredText) {
+      this.sibling.clickColoredText();
+    }
 
     if(!this.hidePlugin) {
       const coloredTextHighlightColor = this.plugin.curTheme === 'dark' ?
@@ -152,4 +178,3 @@ export default class StatusBar {
     this.clickColoredText();
   }
 }
- 

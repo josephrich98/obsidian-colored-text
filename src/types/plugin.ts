@@ -3,4 +3,8 @@ export interface ColorsData {
   colorArr: string[];
   colorCellCount: string;
   hidePlugin: boolean;
+
+  favoriteHighlightColors: string[];
+  highlightArr: string[];
+  highlightCellCount: string;
 }

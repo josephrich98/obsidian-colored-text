@@ -1,10 +1,11 @@
 import { App, BaseComponent, ColorComponent, PluginSettingTab, Setting } from "obsidian";
-import { DEFAULT_SETTINGS } from "./constants/defaults";
+import { DEFAULT_SETTINGS, PaletteKind, paletteFavorites } from "./constants/defaults";
 import ColoredFont from "./main";
 
 export class SettingsTab extends PluginSettingTab {
   plugin: ColoredFont;
   favoriteColorsSetting: Setting;
+  favoriteHighlightColorsSetting: Setting;
 
   constructor(app: App, plugin: ColoredFont) {
     super(app, plugin);
@@ -15,6 +16,9 @@ export class SettingsTab extends PluginSettingTab {
     const { containerEl } = this;
 
     containerEl.empty();
+
+    /* ---------------- Text color ---------------- */
+    containerEl.createEl("h3", { text: "Text Color" });
 
     new Setting(containerEl)
       .setName("Number of Color Cells")
@@ -29,35 +33,38 @@ export class SettingsTab extends PluginSettingTab {
           })
       );
 
-    this.favoriteColorsSetting = new Setting(containerEl)
-      .setName("Favorite Colors")
-      .setDesc("Set your favorite colors to pick from");
+    this.favoriteColorsSetting = this.addFavoritesSetting(
+      containerEl,
+      PaletteKind.Text,
+      "Favorite Colors",
+      "Set your favorite colors to pick from"
+    );
 
-    this.plugin.colorsData.favoriteColors.forEach((c, i) => {
-      this.favoriteColorsSetting
-        .addColorPicker((color) =>
-          color
-            .setValue(c)
-            .onChange(async (value) => {
-              this.plugin.colorsData.favoriteColors[i] = value;
-              await this.plugin.saveColorData();
-            })
-        )
-    });
+    /* ---------------- Highlight ---------------- */
+    containerEl.createEl("h3", { text: "Highlight" });
 
-    /* Restore default favorite colors */
-    this.favoriteColorsSetting.addExtraButton((button) => {
-      button
-        .setIcon("rotate-ccw")
-        .setTooltip("Restore defaults")
-        .onClick(async () => {
-          if (DEFAULT_SETTINGS.favoriteColors !== undefined) {
-            this.plugin.colorsData.favoriteColors = [...DEFAULT_SETTINGS.favoriteColors];
-          }
-          this.reloadColors(this.favoriteColorsSetting.components);
-          await this.plugin.saveColorData();
-        })
-    });
+    new Setting(containerEl)
+      .setName("Number of Highlight Cells")
+      .setDesc("Change number of highlight cells (You need to reload Obsidian for changes to occur)")
+      .addText((text) =>
+        text
+          .setPlaceholder("5")
+          .setValue(this.plugin.colorsData.highlightCellCount)
+          .onChange(async (value) => {
+            this.plugin.colorsData.highlightCellCount = value;
+            await this.plugin.saveColorData();
+          })
+      );
+
+    this.favoriteHighlightColorsSetting = this.addFavoritesSetting(
+      containerEl,
+      PaletteKind.Highlight,
+      "Favorite Highlight Colors",
+      "Set your favorite highlight colors to pick from"
+    );
+
+    /* ---------------- General ---------------- */
+    containerEl.createEl("h3", { text: "General" });
 
     new Setting(containerEl)
       .setName("Hide Plugin in the Status Bar")
@@ -72,12 +79,56 @@ export class SettingsTab extends PluginSettingTab {
       })
   }
 
-  reloadColors(components: BaseComponent[]) {
+  private addFavoritesSetting(
+    containerEl: HTMLElement,
+    kind: PaletteKind,
+    name: string,
+    desc: string
+  ): Setting {
+    const setting = new Setting(containerEl)
+      .setName(name)
+      .setDesc(desc);
+
+    paletteFavorites(this.plugin.colorsData, kind).forEach((c, i) => {
+      setting.addColorPicker((color) =>
+        color
+          .setValue(c)
+          .onChange(async (value) => {
+            paletteFavorites(this.plugin.colorsData, kind)[i] = value;
+            await this.plugin.saveColorData();
+          })
+      )
+    });
+
+    /* Restore default favorite colors */
+    setting.addExtraButton((button) => {
+      button
+        .setIcon("rotate-ccw")
+        .setTooltip("Restore defaults")
+        .onClick(async () => {
+          const defaults = paletteFavorites(DEFAULT_SETTINGS, kind);
+          if (defaults !== undefined) {
+            if (kind === PaletteKind.Highlight) {
+              this.plugin.colorsData.favoriteHighlightColors = [...defaults];
+            } else {
+              this.plugin.colorsData.favoriteColors = [...defaults];
+            }
+          }
+          this.reloadColors(setting.components, kind);
+          await this.plugin.saveColorData();
+        })
+    });
+
+    return setting;
+  }
+
+  reloadColors(components: BaseComponent[], kind: PaletteKind = PaletteKind.Text) {
+    const favorites = paletteFavorites(this.plugin.colorsData, kind);
     let i = 0;
     for (const component of components) {
       if (component instanceof ColorComponent) {
         (component as ColorComponent)
-          .setValue(this.plugin.colorsData.favoriteColors[i]);
+          .setValue(favorites[i]);
         i++;
       }
     }

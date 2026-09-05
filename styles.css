@@ -8,3 +8,9 @@
     margin-left: 3px;
     margin-right: 3px;
 }
+
+/* Highlight cells are rounded so they are told apart from the text color
+   cells at a glance in the status bar. */
+.status-highlight {
+    border-radius: 50%;
+}

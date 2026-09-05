@@ -4,6 +4,7 @@ import { Root, createRoot } from "react-dom/client";
 import ColorPalette from "./components/ColorPalette";
 import ColoredFont from "./main";
 import {ColorUtils} from "./colorUtils";
+import {PALETTE_SPECS, PaletteKind, PaletteSpec, paletteFavorites} from "./constants/defaults";
 
 export class ColorModal extends Modal {
   private colorResult: string;
@@ -11,21 +12,31 @@ export class ColorModal extends Modal {
   onSubmit: (result: string) => void;
   private colorPaletteRoot: Root;
   private colorUtils: ColorUtils;
+  private readonly kind: PaletteKind;
+  private readonly spec: PaletteSpec;
   plugin: ColoredFont;
 
-  constructor(app: App, plugin: ColoredFont, prevColor: string, onSubmit: (result: string) => void) {
+  constructor(
+    app: App,
+    plugin: ColoredFont,
+    prevColor: string,
+    kind: PaletteKind,
+    onSubmit: (result: string) => void
+  ) {
     super(app);
 
     this.colorUtils = new ColorUtils();
     this.colorResult = prevColor;
     this.plugin = plugin;
+    this.kind = kind;
+    this.spec = PALETTE_SPECS[kind];
     this.prevColor = this.colorUtils.rgbToHex(prevColor);
     this.onSubmit = onSubmit;
   }
 
   async onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h1", { text: "Color Picker" });
+    contentEl.createEl("h1", { text: this.spec.modalTitle });
     contentEl.createDiv();
     this.colorPaletteRoot = createRoot(contentEl.children[1]);
 
@@ -35,9 +46,9 @@ export class ColorModal extends Modal {
           className="setting-item"
           style={{ display: "flex", flexDirection: "row", alignItems: "center" }}
         >
-          <div>Select a color</div>
+          <div>{this.spec.modalLabel}</div>
           <ColorPalette
-            colors={this.plugin.colorsData.favoriteColors}
+            colors={paletteFavorites(this.plugin.colorsData, this.kind)}
             onModalColorClick={this.onModalColorClick}
           />
         </div>
